@@ -2,7 +2,7 @@
 # Script to write a String in a given file
 
 
-# Verificatoin of Argument
+# Verification of Argument
 if [ "$#" -ne 2 ]; then
     echo "Error: Two Arguments Required"
     exit 1
@@ -27,6 +27,5 @@ fi
 echo "$writeStr" > "$writeFile" || {
     echo "Error: Failed to write to $writeFile"
     exit 1
-
 }
     echo "$writeStr written to $writeFile succesfully"
