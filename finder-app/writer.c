@@ -12,6 +12,7 @@ int main(int argc, char *argv[]) {
 
     openlog("writer", LOG_PID | LOG_CONS, LOG_USER);
 
+    // ah
 
     if (argc != 3) {
         syslog(LOG_ERR, "Invalid arguments. Usage: %s <writefile> <writestr>", argv[0]);
