@@ -119,13 +119,52 @@ make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs 
 
 
 
+###############################################################
+# Shit i added because the whole github action thingy wont stop been a bitch
+################################################################
+echo "Library dependencies (toolchain-provided paths)"
+cd "${OUTDIR}/rootfs"
+mkdir -p lib
+
+# Resolve exact files from whatever CROSS_COMPILE is set to
+LOADER="$(${CROSS_COMPILE}gcc -print-file-name=ld-linux-aarch64.so.1)"
+LIBC="$(${CROSS_COMPILE}gcc -print-file-name=libc.so.6)"
+LIBM="$(${CROSS_COMPILE}gcc -print-file-name=libm.so.6)"
+LIBRESOLV="$(${CROSS_COMPILE}gcc -print-file-name=libresolv.so.2)"
+
+# Sanity check (fail early if toolchain is weird)
+for f in "$LOADER" "$LIBC" "$LIBM" "$LIBRESOLV"; do
+  [ -z "$f" ] && { echo "ERROR: missing runtime lib path from toolchain"; exit 1; }
+  [ ! -e "$f" ] && { echo "ERROR: $f not found on runner"; exit 1; }
+done
+
+# Put everything in /lib in the initramfs
+cp -L "$LOADER" lib/
+cp -L "$LIBC" lib/
+cp -L "$LIBM" lib/
+cp -L "$LIBRESOLV" lib/
+
+# Advisory only (don’t break the build if grep finds nothing)
+${CROSS_COMPILE}readelf -a "${OUTDIR}/rootfs/bin/busybox" | grep "program interpreter" || true
+${CROSS_COMPILE}readelf -a "${OUTDIR}/rootfs/bin/busybox" | grep "Shared library"     || true
+################################################################################
+
+
+
+
+
+
+
+
+
+########################################################################
 echo "Library dependencies"
 # ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 # ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
+# ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
+# ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 
 # TODO: Add library dependencies to rootfs
@@ -137,24 +176,29 @@ ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 # cp ${SYSROOT}/lib64/libresolv.so.2 lib64/
 # cp ${SYSROOT}/lib64/libc.so.6 lib64/
 
-# Discover files; fall back to Ubuntu multiarch path
-LOADER="$(${CROSS_COMPILE}gcc -print-file-name=ld-linux-aarch64.so.1)"
-LIBC="$(${CROSS_COMPILE}gcc -print-file-name=libc.so.6)"
-LIBM="$(${CROSS_COMPILE}gcc -print-file-name=libm.so.6)"
-LIBRESOLV="$(${CROSS_COMPILE}gcc -print-file-name=libresolv.so.2)"
+# # Discover files; fall back to Ubuntu multiarch path
+# LOADER="$(${CROSS_COMPILE}gcc -print-file-name=ld-linux-aarch64.so.1)"
+# LIBC="$(${CROSS_COMPILE}gcc -print-file-name=libc.so.6)"
+# LIBM="$(${CROSS_COMPILE}gcc -print-file-name=libm.so.6)"
+# LIBRESOLV="$(${CROSS_COMPILE}gcc -print-file-name=libresolv.so.2)"
 
-# If any are empty, use multiarch defaults
-[ -z "$LOADER" ]    && LOADER=/usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1
-[ -z "$LIBC" ]      && LIBC=/usr/aarch64-linux-gnu/lib/libc.so.6
-[ -z "$LIBM" ]      && LIBM=/usr/aarch64-linux-gnu/lib/libm.so.6
-[ -z "$LIBRESOLV" ] && LIBRESOLV=/usr/aarch64-linux-gnu/lib/libresolv.so.2
+# # If any are empty, use multiarch defaults
+# [ -z "$LOADER" ]    && LOADER=/usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1
+# [ -z "$LIBC" ]      && LIBC=/usr/aarch64-linux-gnu/lib/libc.so.6
+# [ -z "$LIBM" ]      && LIBM=/usr/aarch64-linux-gnu/lib/libm.so.6
+# [ -z "$LIBRESOLV" ] && LIBRESOLV=/usr/aarch64-linux-gnu/lib/libresolv.so.2
 
-cd ${OUTDIR}/rootfs
-mkdir -p lib
-cp -L "$LOADER"    lib/
-cp -L "$LIBC"      lib/
-cp -L "$LIBM"      lib/
-cp -L "$LIBRESOLV" lib/
+# cd ${OUTDIR}/rootfs
+# mkdir -p lib
+# cp -L "$LOADER"    lib/
+# cp -L "$LIBC"      lib/
+# cp -L "$LIBM"      lib/
+# cp -L "$LIBRESOLV" lib/
+
+###################################################################################
+
+
+
 
 # TODO: Make device nodes
 ${SUDO} mknod -m 666 dev/null c 1 3 || true
