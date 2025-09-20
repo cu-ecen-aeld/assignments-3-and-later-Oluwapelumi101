@@ -20,6 +20,29 @@ ARCH=${ARCH:-arm64}
 CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
 
+ARCH=${ARCH:-arm64}
+CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
+
+# Test passing frustrations  
+if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
+  for P in aarch64-none-linux-gnu- aarch64-linux-gnu-; do
+    if command -v ${P}gcc >/dev/null 2>&1; then
+      CROSS_COMPILE="$P"
+      echo "Using cross-compiler: ${CROSS_COMPILE}gcc"
+      break
+    fi
+  done
+fi
+if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
+  echo "ERROR: No aarch64 cross-compiler found on PATH"; exit 1
+fi
+
+# sudo wrapper (CI may be root without sudo)
+if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
+
+
+
+
 if [ $# -lt 1 ]
 then
 	echo "Using default directory ${OUTDIR} for output"
@@ -60,7 +83,8 @@ cd "$OUTDIR"
 if [ -d "${OUTDIR}/rootfs" ]
 then
 	echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
-    sudo rm  -rf ${OUTDIR}/rootfs
+    # sudo rm  -rf ${OUTDIR}/rootfs
+    ${SUDO} rm  -rf ${OUTDIR}/rootfs
 fi
 
 # TODO: Create necessary base directories
@@ -133,8 +157,8 @@ cp -L "$LIBM"      lib/
 cp -L "$LIBRESOLV" lib/
 
 # TODO: Make device nodes
-sudo mknod -m 666 dev/null c 1 3 || true
-sudo mknod -m 600 dev/console c 5 1 || true
+${SUDO} mknod -m 666 dev/null c 1 3 || true
+${SUDO} mknod -m 600 dev/console c 5 1 || true
 
 # TODO: Clean and build the writer utility
 cd ${FINDER_APP_DIR}
@@ -165,7 +189,7 @@ sed -i 's|\.\./conf/username.txt|username.txt|g' ${OUTDIR}/rootfs/home/finder-te
 
 # TODO: Chown the root directory
 cd ${OUTDIR}/rootfs
-sudo chown -R root:root *
+${SUDO} chown -R root:root *
 
 # TODO: Create initramfs.cpio.gz
 cd ${OUTDIR}/rootfs
