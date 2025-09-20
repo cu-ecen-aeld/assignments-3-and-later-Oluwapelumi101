@@ -1,5 +1,3 @@
-# A Script to find the number of files with a given word in a given directory
-
 #!/bin/bash
 
 # Error check for arguements 
