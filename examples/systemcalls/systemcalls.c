@@ -1,4 +1,12 @@
 #include "systemcalls.h"
+#include <stdarg.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +24,23 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    if( cmd == NULL ) {
+        return false;
+    }
 
-    return true;
+    int ret = system(cmd);
+
+    if (ret == -1 ) {
+        // System call failed 
+        return false;
+    }
+
+    // Check wait status
+    if (WIFEXITED(ret) && WEXITSTATUS(ret) == 0) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -36,6 +59,17 @@ bool do_system(const char *cmd)
 
 bool do_exec(int count, ...)
 {
+
+    /*
+    * TODO:
+    *   Execute a system command by calling fork, execv(),
+    *   and wait instead of system (see LSP page 161).
+    *   Use the command[0] as the full path to the command to execute
+    *   (first argument to execv), and use the remaining arguments
+    *   as second argument to the execv() command.
+    *
+    */
+
     va_list args;
     va_start(args, count);
     char * command[count+1];
@@ -45,23 +79,41 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
-
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
-
     va_end(args);
 
-    return true;
+    pid_t pid = fork();
+    if( pid < 0 ) {
+        perror("Fork Failed");
+        return false;
+    } else if ( pid == 0) {
+        // Chile Process
+        execv(command[0], command);
+        // Gets executed if execv fails
+        perror("execv failed");
+        exit(EXIT_FAILURE);
+    } else {
+        // Parent Process 
+        int status;
+        if ( waitpid(pid, &status, 0) == -1) 
+        {
+            perror("waitpid failed");
+            return false;
+        }
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+        {
+            return true;
+        } else 
+            return false;
+    }
+
+
+    // this line is to avoid a compile warning before your implementation is complete
+    // and may be removed
+    // command[count] = command[count];
+
+
+
+
 }
 
 /**
@@ -82,7 +134,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    // command[count] = command[count];
 
 
 /*
@@ -94,6 +146,50 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
     va_end(args);
+    pid_t pid = fork();
 
-    return true;
+    if (pid < 0 ) {
+        perror("Fork Failure");
+        return false;
+    } else if ( pid == 0 )
+    {
+        // Child Process
+        int fd = open( outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644 );
+        if ( fd < 0 ) 
+        {
+            // Dealing withh file opening error
+            perror("open failed");
+            exit(EXIT_FAILURE);
+        }
+
+        if (dup2(fd, STDOUT_FILENO) < 0)
+        {
+            perror("dup2 failed");
+            exit(EXIT_FAILURE);
+        }
+        close(fd);
+
+        // Execution 
+        execv(command[0], command);
+        perror("execv failed");
+        exit(EXIT_FAILURE);
+    }
+    // Waiting and further execution in Parent Process
+     else
+    {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+        {
+            perror("waitpid failed");
+            return false;
+        }
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+            return true;
+        else
+            return false;
+    }
+    
+
+    // return true;
 }
