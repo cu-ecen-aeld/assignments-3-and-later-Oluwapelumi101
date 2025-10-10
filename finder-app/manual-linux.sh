@@ -1,7 +1,6 @@
 #!/bin/bash
 # Script outline to install and build kernel.
-# Author: Siddhant Jajoo. 
-# Other: Oluwapelumi
+# Author: Siddhant Jajoo.
 
 set -e
 set -u
@@ -11,37 +10,8 @@ KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.gi
 KERNEL_VERSION=v5.15.163
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
-
-# ARCH=arm64
-# CROSS_COMPILE=aarch64-none-linux-gnu-
-
-
-ARCH=${ARCH:-arm64}
-CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
-
-
-ARCH=${ARCH:-arm64}
-CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
-
-# Test passing frustrations  
-if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
-  for P in aarch64-none-linux-gnu- aarch64-linux-gnu-; do
-    if command -v ${P}gcc >/dev/null 2>&1; then
-      CROSS_COMPILE="$P"
-      echo "Using cross-compiler: ${CROSS_COMPILE}gcc"
-      break
-    fi
-  done
-fi
-if ! command -v ${CROSS_COMPILE}gcc >/dev/null 2>&1; then
-  echo "ERROR: No aarch64 cross-compiler found on PATH"; exit 1
-fi
-
-# sudo wrapper (CI may be root without sudo)
-if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
-
-
-
+ARCH=arm64
+CROSS_COMPILE=aarch64-none-linux-gnu-
 
 if [ $# -lt 1 ]
 then
@@ -64,35 +34,50 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    # TODO: Add your kernel build steps here
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
-    make -j$(nproc) ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
-
+    # TODO: Add your kernel build steps here (COMPLETED)
+    #Completely cleans the kernel source tree. Ensures our kernel build is fully reproducible and note affected by previous builds.
+    make ARCH=arm64 CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    
+    #Generates a default kernel configuration for the aarch64-none-linux-gnus-modules
+    make ARCH=arm64 CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    
+    #Uncompressed ELF Kernel binary
+    make -j4 ARCH=arm64 CROSS_COMPILE=${CROSS_COMPILE} all
+    
+    #Compiles kernel loadable modules
+    #make ARCH=arm64 CROSS_COMPILE=${CROSS_COMPILE} modules
+    
+    #Builds device tree vinaries describing the hardware.
+    make ARCH=arm64 CROSS_COMPILE=${CROSS_COMPILE} dtbs
+    
 fi
 
 echo "Adding the Image in outdir"
-
-# review line
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
 if [ -d "${OUTDIR}/rootfs" ]
 then
 	echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
-    # sudo rm  -rf ${OUTDIR}/rootfs
-    ${SUDO} rm  -rf ${OUTDIR}/rootfs
+    sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
 # TODO: Create necessary base directories
-mkdir -p ${OUTDIR}/rootfs
-cd ${OUTDIR}/rootfs
-mkdir -p bin sbin lib lib64 proc sys usr/bin usr/sbin etc dev home tmp
-chmod 1777 tmp
+#bin: Essential Binaries: Contains essential user commands. BusyBox binaries will go here, so scrips and shell commands can execute. If missing, no shell, no commands, the system is effectively useless.
+#dev: Device Nodes: Special files that represent devices. If missing, Kernel panic, or scripts fail if they attempt to write.
+#etc: Configuration Files: Stores system-wide configuration files such as passwd or hostname. Scripts and apps read config. Scripts that rely on configuration files will fail
+#home: User scripts and applications: Store your personal files, scripts and assignment programs such as finder.sh, writer, autorun-qemu.sh. Keeps user files seperate from system binaries. Applications may not run or be found by QEMU/init scripts.
+#Lib & LIB64: Shared Libraries: This is where dynamically linked programs get their libraries so when BusyBox or your writer app is dynamically linked, they rely on shared libraries. Dynamic programs fail to execute with "cannot load shared library"
+#proc: Kernel Info: Virtual filesystem exposing runtime kernel information. Multiple utilities in BusyBox read /proc. If missing, commands that rely on /proc will fail.
+#sbin: System Binaries: Contains essential system administraion commands, like mount, ifconfig, init. Commands required to configure the system boot are stored here. If missing some scripts or kernel init may fail to find commands that are expected in /sbin
+#sys: Device Information: Sysfs, exposes devices, drivers, and hardware info. Some scripts or tools query /sys/class for device info. 
+#tmp: Temporary Files: Scratch place for scripts, programs, logs. Your scripts may create temporary files for intermediate data. Standard linux programs assume /tmp exists. Programs fail or cannot write temporary files.
+#usr: Secondary binaries, libraries: Contains non essential user and system binaries, often "additional" utlities".Scripts that expect commands here will fail.
+#var: Variable files and logs: Persistent runtime files. Logging fails if missing.
 
+mkdir -p rootfs/{bin,dev,etc,home,lib,lib64,proc,sbin,sys,tmp,usr,var}
+mkdir -p rootfs/usr/{bin,lib,sbin}
+mkdir -p rootfs/var/log
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
@@ -101,140 +86,49 @@ git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
-# Always reset to a minimal, known-good config
-make distclean
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
-sed -i 's/^CONFIG_TC=.*/# CONFIG_TC is not set/' .config
-grep -q '^CONFIG_TC' .config || echo '# CONFIG_TC is not set' >> .config
-yes "" | make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} oldconfig
-
 # TODO: Make and install busybox
-make -j$(nproc) ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
 
-
-
-###############################################################
-# Shit i added because the whole github action thingy wont stop been a bitch
-################################################################
-echo "Library dependencies (toolchain-provided paths)"
-cd "${OUTDIR}/rootfs"
-mkdir -p lib
-
-# Resolve exact files from whatever CROSS_COMPILE is set to
-LOADER="$(${CROSS_COMPILE}gcc -print-file-name=ld-linux-aarch64.so.1)"
-LIBC="$(${CROSS_COMPILE}gcc -print-file-name=libc.so.6)"
-LIBM="$(${CROSS_COMPILE}gcc -print-file-name=libm.so.6)"
-LIBRESOLV="$(${CROSS_COMPILE}gcc -print-file-name=libresolv.so.2)"
-
-# Sanity check (fail early if toolchain is weird)
-for f in "$LOADER" "$LIBC" "$LIBM" "$LIBRESOLV"; do
-  [ -z "$f" ] && { echo "ERROR: missing runtime lib path from toolchain"; exit 1; }
-  [ ! -e "$f" ] && { echo "ERROR: $f not found on runner"; exit 1; }
-done
-
-# Put everything in /lib in the initramfs
-cp -L "$LOADER" lib/
-cp -L "$LIBC" lib/
-cp -L "$LIBM" lib/
-cp -L "$LIBRESOLV" lib/
-
-# Advisory only (don’t break the build if grep finds nothing)
-${CROSS_COMPILE}readelf -a "${OUTDIR}/rootfs/bin/busybox" | grep "program interpreter" || true
-${CROSS_COMPILE}readelf -a "${OUTDIR}/rootfs/bin/busybox" | grep "Shared library"     || true
-################################################################################
-
-
-
-
-
-
-
-
-
-########################################################################
 echo "Library dependencies"
-# ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
-# ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
-
-
-# ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
-# ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
-
+${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
-# SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
-# cd ${OUTDIR}/rootfs
-# mkdir -p lib lib64
-# cp ${SYSROOT}/lib/ld-linux-aarch64.so.1 lib/
-# cp ${SYSROOT}/lib64/libm.so.6 lib64/
-# cp ${SYSROOT}/lib64/libresolv.so.2 lib64/
-# cp ${SYSROOT}/lib64/libc.so.6 lib64/
-
-# # Discover files; fall back to Ubuntu multiarch path
-# LOADER="$(${CROSS_COMPILE}gcc -print-file-name=ld-linux-aarch64.so.1)"
-# LIBC="$(${CROSS_COMPILE}gcc -print-file-name=libc.so.6)"
-# LIBM="$(${CROSS_COMPILE}gcc -print-file-name=libm.so.6)"
-# LIBRESOLV="$(${CROSS_COMPILE}gcc -print-file-name=libresolv.so.2)"
-
-# # If any are empty, use multiarch defaults
-# [ -z "$LOADER" ]    && LOADER=/usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1
-# [ -z "$LIBC" ]      && LIBC=/usr/aarch64-linux-gnu/lib/libc.so.6
-# [ -z "$LIBM" ]      && LIBM=/usr/aarch64-linux-gnu/lib/libm.so.6
-# [ -z "$LIBRESOLV" ] && LIBRESOLV=/usr/aarch64-linux-gnu/lib/libresolv.so.2
-
-# cd ${OUTDIR}/rootfs
-# mkdir -p lib
-# cp -L "$LOADER"    lib/
-# cp -L "$LIBC"      lib/
-# cp -L "$LIBM"      lib/
-# cp -L "$LIBRESOLV" lib/
-
-###################################################################################
-
-
-
+cd ${OUTDIR}/rootfs
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+cp -a $SYSROOT/lib/ld-linux-aarch64.so.1 lib/
+cp -a $SYSROOT/lib64/libc.so.6 lib64/
+cp -a $SYSROOT/lib64/libm.so.5 lib64/
+cp -a $SYSROOT/lib64/libresolv.so.2 lib64/
 
 # TODO: Make device nodes
-${SUDO} mknod -m 666 dev/null c 1 3 || true
-${SUDO} mknod -m 600 dev/console c 5 1 || true
+sudo mknod -m 666 dev/null c 1 3
+sudo mknod -m 600 dev/console c 5 1
 
 # TODO: Clean and build the writer utility
-cd ${FINDER_APP_DIR}
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}
 
-# TODO: Copy the finder related scripts and executables to the /home directory
-# on the target rootfs
+# TODO: Copy the finder related scripts and executable to the /home directory on the target rootfs
+mkdir -p ${OUTDIR}/rootfs/home
 cp writer ${OUTDIR}/rootfs/home/
-cp finder.sh ${OUTDIR}/rootfs/home/
-cp finder-test.sh ${OUTDIR}/rootfs/home/
-cp conf/username.txt ${OUTDIR}/rootfs/home/
-cp conf/assignment.txt ${OUTDIR}/rootfs/home/
-cp autorun-qemu.sh ${OUTDIR}/rootfs/home/
-
-
-# Fix to pass the gaddam test
+cp finder.sh finder-test.sh ${OUTDIR}/rootfs/home/
 mkdir -p ${OUTDIR}/rootfs/home/conf
-cp conf/username.txt   ${OUTDIR}/rootfs/home/conf/
-cp conf/assignment.txt ${OUTDIR}/rootfs/home/conf/
-sed -i '1 s|^#!.*|#!/bin/sh|' ${OUTDIR}/rootfs/home/finder.sh ${OUTDIR}/rootfs/home/finder-test.sh
-chmod +x ${OUTDIR}/rootfs/home/finder.sh ${OUTDIR}/rootfs/home/finder-test.sh
-
-
-# Fix finder-test.sh pathing to conf
-sed -i 's|\.\./conf/assignment.txt|assignment.txt|g' ${OUTDIR}/rootfs/home/finder-test.sh
-sed -i 's|\.\./conf/username.txt|username.txt|g' ${OUTDIR}/rootfs/home/finder-test.sh
+cp conf/username.txt conf/assignment.txt $OUTDIR/rootfs/home/conf/
+cp autorun-qemo.sh ${OUTDIR}/rootfs/home/
 
 # TODO: Chown the root directory
-cd ${OUTDIR}/rootfs
-${SUDO} chown -R root:root *
+sudo chown -R root:root ${OUTDIR}/rootfs
 
 # TODO: Create initramfs.cpio.gz
 cd ${OUTDIR}/rootfs
-find . | cpio -H newc -ov --owner root:root | gzip -9 > ${OUTDIR}/initramfs.cpio.gz
+find . | cpio -H newc -ov --owner root:root | gzip > ${OUTDIR}/initramfs.cpio.gz
+
+exit 0
