@@ -92,6 +92,9 @@ else
     cd busybox
 fi
 
+
+#Bullshit 
+
 # TODO: Make and install busybox
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs install
@@ -102,7 +105,7 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 cd ${OUTDIR}/rootfs
-SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)ls
 cp -a $SYSROOT/lib/ld-linux-aarch64.so.1 lib/
 cp -a $SYSROOT/lib64/libc.so.6 lib64/
 cp -a $SYSROOT/lib64/libm.so.5 lib64/
