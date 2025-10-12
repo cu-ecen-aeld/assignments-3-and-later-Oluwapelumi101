@@ -2,8 +2,6 @@
 # Script outline to install and build kernel.
 # Author: Siddhant Jajoo.
 
-
-##  Verified Working Code 3333
 set -e
 set -u
 
@@ -41,9 +39,11 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     # defconfig
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
     # build vmlinux
-    make -j8 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    # make -j8 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    make -j"$(nproc)" ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+
     # build modules
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+    # make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
     # device tree
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
