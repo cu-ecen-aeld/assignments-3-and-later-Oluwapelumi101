@@ -3,12 +3,11 @@
 #   make                               # native build with gcc
 #   make CROSS_COMPILE=aarch64-linux-gnu-   # cross build for ARM64
 
-CROSS_COMPILE ?=
-CC      := $(CROSS_COMPILE)gcc
-CFLAGS  := -Wall -Werror -g
-TARGET  := writer
-SRC     := writer.c
-OBJ     := $(SRC:.c=.o)
+CC ?= gcc
+CFLAGS ?= -Wall -Werror -g
+TARGET = writer
+SRC = writer.c
+OBJ = $(SRC:.c=.o)
 
 .PHONY: all clean
 
