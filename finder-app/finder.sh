@@ -6,7 +6,6 @@ if [ "$#" -ne 2 ]; then
     exit 1
 fi
 
-
 # Declaring variables
 filesDir="$1"
 searchStr="$2"

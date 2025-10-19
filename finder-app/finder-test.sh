@@ -38,7 +38,6 @@ echo "Writing ${NUMFILES} files containing string '${WRITESTR}' to ${WRITEDIR}"
 rm -rf "$WRITEDIR"
 mkdir -p "$WRITEDIR"
 
-
 # Create files using the **binary** writer (on PATH), NOT ./writer.sh
 i=1
 while [ $i -le "$NUMFILES" ]; do
