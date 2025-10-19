@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Script to write a String in a given file
 
 
