@@ -334,7 +334,10 @@ int main(int argc, char *argv[]) {
                 // Continue; if more '\n' present, the next loop will pick them up.
                 // have_packet = false; // we handled that one
             }
-        }
+            
+        } 
+
+
 
         // Close connection
         if (getnameinfo((struct sockaddr *)&peer, peerlen,
