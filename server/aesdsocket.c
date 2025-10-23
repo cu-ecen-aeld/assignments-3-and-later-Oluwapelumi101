@@ -259,7 +259,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    sleep(1);
+    // Wait until socket is ready to accept connections (Valgrind-safe)
+    {
+        int retries = 50; // up to ~5 seconds total
+        while (retries--) {
+            int test_fd = socket(AF_INET, SOCK_STREAM, 0);
+            if (test_fd < 0) break; // shouldn't happen
+            struct sockaddr_in sa = {0};
+            sa.sin_family = AF_INET;
+            sa.sin_port = htons(9000);
+            sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            if (connect(test_fd, (struct sockaddr *)&sa, sizeof(sa)) == 0) {
+                close(test_fd);
+                break; // socket is ready
+            }
+            close(test_fd);
+            usleep(100000); // 0.1s
+        }
+    }
     
     // Main accept loop
     while (!g_exit_requested) {
