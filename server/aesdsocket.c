@@ -126,6 +126,7 @@ static int make_listen_socket(void) {
             continue;
         }
 
+        syslog(LOG_INFO, "Listening on port %s", LISTEN_PORT);
         break; // success
     }
 
@@ -258,6 +259,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    sleep(1);
+    
     // Main accept loop
     while (!g_exit_requested) {
         struct sockaddr_storage peer;
@@ -361,6 +364,5 @@ int main(int argc, char *argv[]) {
     return 0;
 
 }
-
 
 
