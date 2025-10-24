@@ -64,7 +64,8 @@ static int install_signal_handlers(void) {
     struct sigaction sa = {0};
     sa.sa_handler = handle_signal;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;  
+    // sa.sa_flags = SA_RESTART;  
+    sa.sa_flags = 0;              
 
     if (sigaction(SIGINT,  &sa, NULL) == -1)
         return -1;
@@ -259,24 +260,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Wait until socket is ready to accept connections (Valgrind-safe)
-    {
-        int retries = 50; // up to ~5 seconds total
-        while (retries--) {
-            int test_fd = socket(AF_INET, SOCK_STREAM, 0);
-            if (test_fd < 0) break; // shouldn't happen
-            struct sockaddr_in sa = {0};
-            sa.sin_family = AF_INET;
-            sa.sin_port = htons(9000);
-            sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-            if (connect(test_fd, (struct sockaddr *)&sa, sizeof(sa)) == 0) {
-                close(test_fd);
-                break; // socket is ready
-            }
-            close(test_fd);
-            usleep(100000); // 0.1s
-        }
-    }
+    // // Wait until socket is ready to accept connections (Valgrind-safe)
+    // {
+    //     int retries = 50; // up to ~5 seconds total
+    //     while (retries--) {
+    //         int test_fd = socket(AF_INET, SOCK_STREAM, 0);
+    //         if (test_fd < 0) break; // shouldn't happen
+    //         struct sockaddr_in sa = {0};
+    //         sa.sin_family = AF_INET;
+    //         sa.sin_port = htons(9000);
+    //         sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    //         if (connect(test_fd, (struct sockaddr *)&sa, sizeof(sa)) == 0) {
+    //             close(test_fd);
+    //             break; // socket is ready
+    //         }
+    //         close(test_fd);
+    //         usleep(100000); // 0.1s
+    //     }
+    // }
     
     // Main accept loop
     while (!g_exit_requested) {
@@ -336,24 +337,35 @@ int main(int argc, char *argv[]) {
             accum[len] = '\0';
 
             // Check for newline
-            char *nl = memchr(accum, '\n', len);
-            if (nl) {
-                // have_packet = true;
-                size_t pkt_len = (nl - accum) + 1; // include newline
+            // char *nlpos = memchr(accum, '\n', len);
+            // if (nlpos) {
+            //     // have_packet = true;
+            //     size_t pkt_len = (nlpos - accum) + 1; // include newline
 
-                // Append packet and reply with full file content
-                if (append_packet_and_reply(accum, pkt_len, client_fd) == -1) {
-                    // keep going but log already done
-                }
+            //     // Append packet and reply with full file content
+            //     if (append_packet_and_reply(accum, pkt_len, client_fd) == -1) {
+            //         // keep going but log already done
+            //     }
 
-                // Shift any bytes after newline into new packet accumulator
+            //     // Shift any bytes after newline into new packet accumulator
+            //     size_t remaining = len - pkt_len;
+            //     if (remaining) memmove(accum, accum + pkt_len, remaining);
+            //     len = remaining;
+            //     // We could loop to handle multiple packets in same recv burst.
+            //     // Continue; if more '\n' present, the next loop will pick them up.
+            //     // have_packet = false; // we handled that one
+            // }
+            // Process *all* complete packets present
+            while (1) {
+                char *nlpos = memchr(accum, '\n', len);
+                if (!nlpos) break;
+                size_t pkt_len = (size_t)(nlpos - accum) + 1; // include newline
+                append_packet_and_reply(accum, pkt_len, client_fd);
                 size_t remaining = len - pkt_len;
                 if (remaining) memmove(accum, accum + pkt_len, remaining);
                 len = remaining;
-                // We could loop to handle multiple packets in same recv burst.
-                // Continue; if more '\n' present, the next loop will pick them up.
-                // have_packet = false; // we handled that one
             }
+
             
         } 
 
