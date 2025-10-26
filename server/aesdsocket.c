@@ -355,6 +355,9 @@ int main(int argc, char *argv[]) {
             //     // Continue; if more '\n' present, the next loop will pick them up.
             //     // have_packet = false; // we handled that one
             // }
+
+
+            
             // Process *all* complete packets present
             while (1) {
                 char *nlpos = memchr(accum, '\n', len);
