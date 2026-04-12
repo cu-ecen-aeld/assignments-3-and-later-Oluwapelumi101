@@ -1,5 +1,4 @@
 # Copy the content directly
-cat > ~/Projects/ALD/ALD-a3/finder-app/manual-linux.sh << 'EOF'
 #!/bin/bash
 # Script to install and build kernel.
 # Author: Azeez Oluwapelumi.
@@ -114,10 +113,6 @@ gzip -f initramfs.cpio
 echo "Done! Kernel: ${OUTDIR}/Image  Initramfs: ${OUTDIR}/initramfs.cpio.gz"
 echo "Boot with: ./finder-app/start-qemu-terminal.sh ${OUTDIR}"
 EOF
-
-
-
-
 
 
 git diff finder-app/manual-linux.sh | head -20
