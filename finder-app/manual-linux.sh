@@ -1,62 +1,51 @@
 #!/bin/bash
-# Script outline to install and build kernel.
-# Author: Siddhant Jajoo.
+# Script to install and build kernel.
+# Author: Azeez Oluwapelumi.
 
 set -e
 set -u
 
 OUTDIR=/tmp/aeld
-KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+KERNEL_REPO=https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
 KERNEL_VERSION=v5.15.163
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
-CROSS_COMPILE=aarch64-none-linux-gnu-
+CROSS_COMPILE=aarch64-linux-gnu-
 
-if [ $# -lt 1 ]
-then
-	echo "Using default directory ${OUTDIR} for output"
+if [ $# -lt 1 ]; then
+    echo "Using default directory ${OUTDIR} for output"
 else
-	OUTDIR=$1
-	echo "Using passed directory ${OUTDIR} for output"
+    OUTDIR=$1
+    echo "Using passed directory ${OUTDIR} for output"
 fi
 
-mkdir -p ${OUTDIR}
+mkdir -p ${OUTDIR} || { echo "ERROR: Could not create ${OUTDIR}"; exit 1; }
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
-    #Clone only if the repository does not exist.
-	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
-	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
+    echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
+    git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION} linux-stable
 fi
+
 if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     cd linux-stable
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
-
-    # clean
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
-    # defconfig
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
-    # build vmlinux
-    # make -j8 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
     make -j"$(nproc)" ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
-
-    # build modules
-    # make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
-    # device tree
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
 
 echo "Adding the Image in outdir"
-cp ${OUTDIR}/linux-stable/arch/arm64/boot/Image ${OUTDIR}
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
-if [ -d "${OUTDIR}/rootfs" ]
-then
-	echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
-    sudo rm  -rf ${OUTDIR}/rootfs
+if [ -d "${OUTDIR}/rootfs" ]; then
+    echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
+    sudo rm -rf ${OUTDIR}/rootfs
 fi
 
 ROOTFS=${OUTDIR}/rootfs
@@ -67,11 +56,8 @@ mkdir -p usr/bin usr/lib usr/sbin usr/lib64
 mkdir -p var/log
 
 cd "$OUTDIR"
-if [ ! -d "${OUTDIR}/busybox" ]
-then
-# git clone git://busybox.net/busybox.git
-git clone https://git.busybox.net/busybox
-
+if [ ! -d "${OUTDIR}/busybox" ]; then
+    git clone https://git.busybox.net/busybox
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     make distclean
@@ -79,33 +65,47 @@ git clone https://git.busybox.net/busybox
 else
     cd busybox
 fi
+sed -i 's/CONFIG_TC=y/CONFIG_TC=n/' .config
 
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make CONFIG_PREFIX=${ROOTFS} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
 cd "$ROOTFS"
 
-CROSS_COMPILER=${CROSS_COMPILE}gcc
-TOOLCHAIN_DIR=$(which $CROSS_COMPILER | xargs dirname)/..
-
-cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $ROOTFS/lib/
-cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libm.so.6 $ROOTFS/lib64/
-cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libresolv.so.2 $ROOTFS/lib64/
-cp ${TOOLCHAIN_DIR}/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $ROOTFS/lib64/
-
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-sudo mknod -m 666 dev/null c 1 3
-sudo mknod -m 666 dev/console c 5 1
+SYSROOT=/usr/aarch64-linux-gnu
+cp ${SYSROOT}/lib/ld-linux-aarch64.so.1  ${ROOTFS}/lib/
+cp ${SYSROOT}/lib/libm.so.6              ${ROOTFS}/lib64/
+cp ${SYSROOT}/lib/libresolv.so.2         ${ROOTFS}/lib64/
+cp ${SYSROOT}/lib/libc.so.6              ${ROOTFS}/lib64/
+
+sudo mknod -m 666 ${ROOTFS}/dev/null    c 1 3
+sudo mknod -m 666 ${ROOTFS}/dev/console c 5 1
 
 cd ${FINDER_APP_DIR}
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}
-cp -r ./writer ./finder.sh ./conf/ ./finder-test.sh ./autorun-qemu.sh ${ROOTFS}/home/
 
+cp ./writer          ${ROOTFS}/home/
+cp ./finder.sh       ${ROOTFS}/home/
+cp ./finder-test.sh  ${ROOTFS}/home/
+cp ./autorun-qemu.sh ${ROOTFS}/home/
+mkdir -p             ${ROOTFS}/home/conf
+cp ./conf/username.txt   ${ROOTFS}/home/conf/
+cp ./conf/assignment.txt ${ROOTFS}/home/conf/
+
+sed -i 's|\.\./conf/assignment\.txt|conf/assignment.txt|g' ${ROOTFS}/home/finder-test.sh
+sed -i 's|#!/bin/bash|#!/bin/sh|' ${ROOTFS}/home/finder.sh
+
+echo "Creating initramfs..."
 cd "$ROOTFS"
 find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
+
 cd "$OUTDIR"
 gzip -f initramfs.cpio
+
+echo "Done! Kernel: ${OUTDIR}/Image  Initramfs: ${OUTDIR}/initramfs.cpio.gz"
+echo "Boot with: ./finder-app/start-qemu-terminal.sh ${OUTDIR}"
