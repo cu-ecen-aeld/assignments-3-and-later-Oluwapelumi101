@@ -1,3 +1,5 @@
+# Copy the content directly
+cat > ~/Projects/ALD/ALD-a3/finder-app/manual-linux.sh << 'EOF'
 #!/bin/bash
 # Script to install and build kernel.
 # Author: Azeez Oluwapelumi.
@@ -71,16 +73,18 @@ make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make CONFIG_PREFIX=${ROOTFS} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
 cd "$ROOTFS"
-
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-SYSROOT=$(aarch64-none-linux-gnu-gcc --print-sysroot)/usr
-cp ${SYSROOT}/lib/ld-linux-aarch64.so.1  ${ROOTFS}/lib/
-cp ${SYSROOT}/lib/libm.so.6              ${ROOTFS}/lib64/
-cp ${SYSROOT}/lib/libresolv.so.2         ${ROOTFS}/lib64/
-cp ${SYSROOT}/lib/libc.so.6              ${ROOTFS}/lib64/
+SYSROOT=$(${CROSS_COMPILE}gcc --print-sysroot)
+
+find ${SYSROOT} -name "ld-linux-aarch64.so.1" | xargs -I{} cp {} ${ROOTFS}/lib/
+for lib in libm.so.6 libresolv.so.2 libc.so.6; do
+    LIBFILE=$(find ${SYSROOT} -name "${lib}" | head -1)
+    cp ${LIBFILE} ${ROOTFS}/lib/
+    cp ${LIBFILE} ${ROOTFS}/lib64/
+done
 
 sudo mknod -m 666 ${ROOTFS}/dev/null    c 1 3
 sudo mknod -m 666 ${ROOTFS}/dev/console c 5 1
@@ -97,9 +101,9 @@ mkdir -p             ${ROOTFS}/home/conf
 cp ./conf/username.txt   ${ROOTFS}/home/conf/
 cp ./conf/assignment.txt ${ROOTFS}/home/conf/
 
-sed -i 's|\.\./conf/assignment\.txt|conf/assignment.txt|g' ${ROOTFS}/home/finder-test.sh
+sed -i 's|/conf/assignment.txt|conf/assignment.txt|g' ${ROOTFS}/home/finder-test.sh
 sed -i 's|#!/bin/bash|#!/bin/sh|' ${ROOTFS}/home/finder.sh
-
+z
 echo "Creating initramfs..."
 cd "$ROOTFS"
 find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
@@ -109,3 +113,11 @@ gzip -f initramfs.cpio
 
 echo "Done! Kernel: ${OUTDIR}/Image  Initramfs: ${OUTDIR}/initramfs.cpio.gz"
 echo "Boot with: ./finder-app/start-qemu-terminal.sh ${OUTDIR}"
+EOF
+
+
+
+
+
+
+git diff finder-app/manual-linux.sh | head -20
