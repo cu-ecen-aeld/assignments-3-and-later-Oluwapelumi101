@@ -11,7 +11,7 @@ KERNEL_VERSION=v5.15.163
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
-CROSS_COMPILE=aarch64-linux-gnu-
+CROSS_COMPILE=aarch64-none-linux-gnu-
 
 if [ $# -lt 1 ]; then
     echo "Using default directory ${OUTDIR} for output"
@@ -76,7 +76,7 @@ echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-SYSROOT=/usr/aarch64-linux-gnu
+SYSROOT=$(aarch64-none-linux-gnu-gcc --print-sysroot)/usr
 cp ${SYSROOT}/lib/ld-linux-aarch64.so.1  ${ROOTFS}/lib/
 cp ${SYSROOT}/lib/libm.so.6              ${ROOTFS}/lib64/
 cp ${SYSROOT}/lib/libresolv.so.2         ${ROOTFS}/lib64/
