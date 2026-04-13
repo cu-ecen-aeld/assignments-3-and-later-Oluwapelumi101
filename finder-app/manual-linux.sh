@@ -102,7 +102,7 @@ cp ./conf/assignment.txt ${ROOTFS}/home/conf/
 
 sed -i 's|/conf/assignment.txt|conf/assignment.txt|g' ${ROOTFS}/home/finder-test.sh
 sed -i 's|#!/bin/bash|#!/bin/sh|' ${ROOTFS}/home/finder.sh
-z
+
 echo "Creating initramfs..."
 cd "$ROOTFS"
 find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
