@@ -112,7 +112,3 @@ gzip -f initramfs.cpio
 
 echo "Done! Kernel: ${OUTDIR}/Image  Initramfs: ${OUTDIR}/initramfs.cpio.gz"
 echo "Boot with: ./finder-app/start-qemu-terminal.sh ${OUTDIR}"
-EOF
-
-
-git diff finder-app/manual-linux.sh | head -20
